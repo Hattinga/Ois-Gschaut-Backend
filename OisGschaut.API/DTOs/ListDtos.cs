@@ -4,15 +4,17 @@ namespace OisGschaut.API.DTOs;
 
 public record ListDto(
     int Id,
-    int UserId,
+    int? UserId,
     string Name,
     string? Description,
     bool IsPublic,
+    int ItemCount,
     DateTime CreatedAt,
     DateTime UpdatedAt
 );
 
 public record CreateListDto(
+    int UserId,
     [MaxLength(100)]  string Name,
     [MaxLength(1000)] string? Description,
     bool IsPublic = false
@@ -28,6 +30,7 @@ public record ListItemDto(
     int MediaId,
     string MediaTitle,
     string MediaType,
+    string? PosterUrl,
     DateTime AddedAt,
     string? Note,
     int? SortOrder

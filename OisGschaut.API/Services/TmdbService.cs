@@ -10,15 +10,25 @@ public class TmdbService(HttpClient http, IConfiguration config)
     public async Task<List<TmdbSearchItem>> SearchAsync(string query)
     {
         var url = $"/3/search/multi?query={Uri.EscapeDataString(query)}&api_key={ApiKey}&include_adult=false";
-        var response = await http.GetFromJsonAsync<TmdbSearchResponse>(url);
+        var resp = await http.GetAsync(url);
+        if (!resp.IsSuccessStatusCode) return [];
+        var response = await resp.Content.ReadFromJsonAsync<TmdbSearchResponse>();
         return response?.Results
             .Where(r => r.MediaType is "movie" or "tv")
             .ToList() ?? [];
     }
 
     public async Task<TmdbMovieDetails?> FetchMovieAsync(int tmdbId)
-        => await http.GetFromJsonAsync<TmdbMovieDetails>($"/3/movie/{tmdbId}?api_key={ApiKey}");
+    {
+        var resp = await http.GetAsync($"/3/movie/{tmdbId}?api_key={ApiKey}");
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadFromJsonAsync<TmdbMovieDetails>();
+    }
 
     public async Task<TmdbTvDetails?> FetchTvAsync(int tmdbId)
-        => await http.GetFromJsonAsync<TmdbTvDetails>($"/3/tv/{tmdbId}?api_key={ApiKey}");
+    {
+        var resp = await http.GetAsync($"/3/tv/{tmdbId}?api_key={ApiKey}");
+        if (!resp.IsSuccessStatusCode) return null;
+        return await resp.Content.ReadFromJsonAsync<TmdbTvDetails>();
+    }
 }

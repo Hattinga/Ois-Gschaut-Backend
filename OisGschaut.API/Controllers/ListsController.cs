@@ -13,10 +13,16 @@ public class ListsController(AppDbContext db) : ControllerBase
     // ── Lists ─────────────────────────────────────────────────────────────
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<ListDto>>> GetAll()
+    public async Task<ActionResult<IEnumerable<ListDto>>> GetAll([FromQuery] int? userId)
     {
-        var lists = await db.Lists
-            .Select(l => new ListDto(l.Id, l.UserId, l.Name, l.Description, l.IsPublic, l.CreatedAt, l.UpdatedAt))
+        var query = db.Lists.AsQueryable();
+        if (userId.HasValue) query = query.Where(l => l.UserId == userId.Value);
+
+        var lists = await query
+            .Select(l => new ListDto(
+                l.Id, l.UserId, l.Name, l.Description, l.IsPublic,
+                l.Items.Count,
+                l.CreatedAt, l.UpdatedAt))
             .ToListAsync();
         return Ok(lists);
     }
@@ -24,28 +30,36 @@ public class ListsController(AppDbContext db) : ControllerBase
     [HttpGet("{id:int}")]
     public async Task<ActionResult<ListDto>> GetById(int id)
     {
-        var list = await db.Lists.FindAsync(id);
+        var list = await db.Lists
+            .Where(l => l.Id == id)
+            .Select(l => new ListDto(
+                l.Id, l.UserId, l.Name, l.Description, l.IsPublic,
+                l.Items.Count,
+                l.CreatedAt, l.UpdatedAt))
+            .FirstOrDefaultAsync();
+
         if (list is null) return NotFound();
-        return Ok(new ListDto(list.Id, list.UserId, list.Name, list.Description, list.IsPublic, list.CreatedAt, list.UpdatedAt));
+        return Ok(list);
     }
 
     [HttpPost]
-    public async Task<ActionResult<ListDto>> Create(int userId, CreateListDto dto)
+    public async Task<ActionResult<ListDto>> Create([FromBody] CreateListDto dto)
     {
-        if (!await db.Users.AnyAsync(u => u.Id == userId))
+        if (!await db.Users.AnyAsync(u => u.Id == dto.UserId))
             return NotFound("User not found.");
 
         var list = new UserList
         {
-            UserId      = userId,
+            UserId      = dto.UserId,
             Name        = dto.Name,
             Description = dto.Description,
             IsPublic    = dto.IsPublic
         };
         db.Lists.Add(list);
         await db.SaveChangesAsync();
-        var result = new ListDto(list.Id, list.UserId, list.Name, list.Description, list.IsPublic, list.CreatedAt, list.UpdatedAt);
-        return CreatedAtAction(nameof(GetById), new { id = list.Id }, result);
+
+        return CreatedAtAction(nameof(GetById), new { id = list.Id },
+            new ListDto(list.Id, list.UserId, list.Name, list.Description, list.IsPublic, 0, list.CreatedAt, list.UpdatedAt));
     }
 
     [HttpPut("{id:int}")]
@@ -60,7 +74,9 @@ public class ListsController(AppDbContext db) : ControllerBase
         list.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync();
-        return Ok(new ListDto(list.Id, list.UserId, list.Name, list.Description, list.IsPublic, list.CreatedAt, list.UpdatedAt));
+
+        var itemCount = await db.ListItems.CountAsync(li => li.ListId == id);
+        return Ok(new ListDto(list.Id, list.UserId, list.Name, list.Description, list.IsPublic, itemCount, list.CreatedAt, list.UpdatedAt));
     }
 
     [HttpDelete("{id:int}")]
@@ -82,12 +98,17 @@ public class ListsController(AppDbContext db) : ControllerBase
 
         var items = await db.ListItems
             .Where(li => li.ListId == id)
-            .Include(li => li.Media)
+            .Include(li => li.Media).ThenInclude(m => m.Assets).ThenInclude(a => a.AssetType)
             .Include(li => li.MediaType)
+            .OrderBy(li => li.SortOrder).ThenBy(li => li.AddedAt)
             .Select(li => new ListItemDto(
                 li.MediaId,
                 li.Media.Title,
                 li.MediaType.Name,
+                li.Media.Assets
+                    .Where(a => a.AssetType.Name == "Poster")
+                    .Select(a => a.Url)
+                    .FirstOrDefault(),
                 li.AddedAt,
                 li.Note,
                 li.SortOrder))
@@ -157,9 +178,9 @@ public class ListsController(AppDbContext db) : ControllerBase
 
         db.ListCollaborators.Add(new ListCollaborator
         {
-            ListId              = id,
-            UserId              = dto.UserId,
-            CollaboratorRoleId  = dto.CollaboratorRoleId
+            ListId             = id,
+            UserId             = dto.UserId,
+            CollaboratorRoleId = dto.CollaboratorRoleId
         });
         await db.SaveChangesAsync();
         return NoContent();

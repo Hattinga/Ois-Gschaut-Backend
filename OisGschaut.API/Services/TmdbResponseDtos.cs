@@ -24,7 +24,7 @@ public record TmdbSearchItem(
 
 public record TmdbMovieDetails(
     [property: JsonPropertyName("id")] int Id,
-    [property: JsonPropertyName("title")] string Title,
+    [property: JsonPropertyName("title")] string? Title,
     [property: JsonPropertyName("original_title")] string? OriginalTitle,
     [property: JsonPropertyName("overview")] string? Overview,
     [property: JsonPropertyName("release_date")] string? ReleaseDate,
@@ -38,7 +38,7 @@ public record TmdbMovieDetails(
 
 public record TmdbTvDetails(
     [property: JsonPropertyName("id")] int Id,
-    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("name")] string? Name,
     [property: JsonPropertyName("original_name")] string? OriginalName,
     [property: JsonPropertyName("overview")] string? Overview,
     [property: JsonPropertyName("first_air_date")] string? FirstAirDate,

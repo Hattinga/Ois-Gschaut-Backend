@@ -14,6 +14,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Episode> Episodes => Set<Episode>();
     public DbSet<Rating> Ratings => Set<Rating>();
     public DbSet<MediaAsset> MediaAssets => Set<MediaAsset>();
+    public DbSet<UserSeasonWatched> UserSeasonWatched => Set<UserSeasonWatched>();
     public DbSet<MediaType> MediaTypes => Set<MediaType>();
     public DbSet<Genre> Genres => Set<Genre>();
     public DbSet<RatingSource> RatingSources => Set<RatingSource>();
@@ -23,6 +24,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // ── Composite primary keys ────────────────────────────────────────
+        modelBuilder.Entity<UserSeasonWatched>()
+            .HasKey(w => new { w.UserId, w.MediaId, w.Season });
+
         modelBuilder.Entity<ListCollaborator>()
             .HasKey(lc => new { lc.ListId, lc.UserId });
 
@@ -119,6 +123,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasOne(a => a.Media)
             .WithMany(m => m.Assets)
             .HasForeignKey(a => a.MediaId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<UserSeasonWatched>()
+            .HasOne(w => w.User)
+            .WithMany(u => u.WatchedSeasons)
+            .HasForeignKey(w => w.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<UserSeasonWatched>()
+            .HasOne(w => w.Media)
+            .WithMany(m => m.WatchedSeasons)
+            .HasForeignKey(w => w.MediaId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // ── Seed data ─────────────────────────────────────────────────────

@@ -10,3 +10,8 @@ public record TvMazeEpisode(
     [property: JsonPropertyName("airdate")] string? AirDate,
     [property: JsonPropertyName("summary")] string? Summary
 );
+
+public record TvMazeShowResult(
+    [property: JsonPropertyName("id")] int Id,
+    [property: JsonPropertyName("name")] string? Name
+);

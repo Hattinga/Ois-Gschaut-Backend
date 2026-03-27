@@ -37,4 +37,5 @@ public class Media
     public ICollection<Episode> Episodes { get; set; } = [];
     public ICollection<Rating> Ratings { get; set; } = [];
     public ICollection<MediaAsset> Assets { get; set; } = [];
+    public ICollection<UserSeasonWatched> WatchedSeasons { get; set; } = [];
 }

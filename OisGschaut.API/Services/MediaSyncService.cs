@@ -88,7 +88,7 @@ public class MediaSyncService(AppDbContext db, TmdbService tmdb, TvMazeService t
             db.Media.Add(media);
         }
 
-        media.Title = details.Title;
+        media.Title = details.Title ?? string.Empty;
         media.OriginalTitle = details.OriginalTitle;
         media.Plot = details.Overview;
         media.ReleaseDate = ParseDate(details.ReleaseDate);
@@ -116,7 +116,7 @@ public class MediaSyncService(AppDbContext db, TmdbService tmdb, TvMazeService t
             db.Media.Add(media);
         }
 
-        media.Title = details.Name;
+        media.Title = details.Name ?? string.Empty;
         media.OriginalTitle = details.OriginalName;
         media.Plot = details.Overview;
         media.ReleaseDate = ParseDate(details.FirstAirDate);

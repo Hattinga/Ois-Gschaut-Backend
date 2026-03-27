@@ -92,17 +92,25 @@ public class MediaController(AppDbContext db, MediaSyncService sync) : Controlle
     }
 
     // POST /api/media/{id}/sync-episodes?tvMazeId=82  — sync episodes from TVMaze
+    // If tvMazeId is omitted and not stored, auto-searches TVMaze by title.
     [HttpPost("{id:int}/sync-episodes")]
-    public async Task<IActionResult> SyncEpisodes(int id, [FromQuery] int? tvMazeId)
+    public async Task<IActionResult> SyncEpisodes(int id, [FromQuery] int? tvMazeId, [FromServices] TvMazeService tvMaze)
     {
         var media = await db.Media.FindAsync(id);
         if (media is null) return NotFound();
 
         var mazeId = tvMazeId ?? media.TvMazeId;
-        if (mazeId is null)
-            return BadRequest("tvMazeId is required (pass as query param or set TvMazeId on the media record first).");
 
-        // Persist the TvMazeId on the record if it wasn't set yet
+        // Auto-search TVMaze by title when no ID is available
+        if (mazeId is null)
+        {
+            var found = await tvMaze.SearchShowAsync(media.Title);
+            if (found is null)
+                return NotFound("Could not find this show on TVMaze. Pass tvMazeId manually.");
+            mazeId = found.Id;
+        }
+
+        // Persist the TvMazeId for future syncs
         if (media.TvMazeId is null)
         {
             media.TvMazeId = mazeId;
