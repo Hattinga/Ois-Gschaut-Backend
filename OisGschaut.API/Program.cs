@@ -1,4 +1,7 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using OisGschaut.API.Data;
 using OisGschaut.API.Services;
 
@@ -28,6 +31,24 @@ builder.Services.AddHttpClient<TvMazeService>(client =>
 });
 
 builder.Services.AddScoped<MediaSyncService>();
+builder.Services.AddSingleton<JwtService>();
+
+var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "CHANGE_ME_TO_A_SECURE_RANDOM_SECRET_KEY_MIN_32_CHARS";
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            ValidateIssuer           = true,
+            ValidIssuer              = builder.Configuration["Jwt:Issuer"] ?? "OisGschaut",
+            ValidateAudience         = true,
+            ValidAudience            = builder.Configuration["Jwt:Audience"] ?? "OisGschautClient",
+            ValidateLifetime         = true,
+            ClockSkew                = TimeSpan.Zero,
+        };
+    });
 
 builder.Services.AddCors(options =>
 {
@@ -60,6 +81,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
