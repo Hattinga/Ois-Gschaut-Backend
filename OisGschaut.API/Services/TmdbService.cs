@@ -31,4 +31,14 @@ public class TmdbService(HttpClient http, IConfiguration config)
         if (!resp.IsSuccessStatusCode) return null;
         return await resp.Content.ReadFromJsonAsync<TmdbTvDetails>();
     }
+
+    public async Task<List<TmdbSearchItem>> TrendingAsync()
+    {
+        var resp = await http.GetAsync($"/3/trending/all/week?api_key={ApiKey}");
+        if (!resp.IsSuccessStatusCode) return [];
+        var response = await resp.Content.ReadFromJsonAsync<TmdbSearchResponse>();
+        return response?.Results
+            .Where(r => r.MediaType is "movie" or "tv")
+            .ToList() ?? [];
+    }
 }

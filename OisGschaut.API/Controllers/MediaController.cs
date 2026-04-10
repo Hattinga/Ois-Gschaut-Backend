@@ -63,6 +63,14 @@ public class MediaController(AppDbContext db, MediaSyncService sync) : Controlle
         return Ok(episodes);
     }
 
+    // GET /api/media/trending  — weekly trending from TMDB, no DB writes
+    [HttpGet("trending")]
+    public async Task<ActionResult<IEnumerable<TmdbSearchResultDto>>> GetTrending()
+    {
+        var results = await sync.GetTrendingAsync();
+        return Ok(results);
+    }
+
     // GET /api/media/search?q=inception  — search TMDB, returns results without persisting
     [HttpGet("search")]
     public async Task<ActionResult<IEnumerable<TmdbSearchResultDto>>> SearchTmdb([FromQuery] string? q)

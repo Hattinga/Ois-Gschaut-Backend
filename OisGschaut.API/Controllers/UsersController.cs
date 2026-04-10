@@ -12,10 +12,15 @@ namespace OisGschaut.API.Controllers;
 public class UsersController(AppDbContext db) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<UserDto>>> GetAll()
+    public async Task<ActionResult<IEnumerable<UserPublicDto>>> GetAll([FromQuery] string? search)
     {
-        var users = await db.Users
-            .Select(u => new UserDto(u.Id, u.Email, u.Username, u.OAuthProvider, u.CreatedAt))
+        var query = db.Users.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(search))
+            query = query.Where(u => EF.Functions.Like(u.Username, $"%{search}%"));
+
+        var users = await query
+            .OrderBy(u => u.Username)
+            .Select(u => new UserPublicDto(u.Id, u.Username))
             .ToListAsync();
         return Ok(users);
     }

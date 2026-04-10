@@ -27,6 +27,13 @@ public class ListsController(AppDbContext db) : ControllerBase
             .Select(l => new ListDto(
                 l.Id, l.UserId, l.Name, l.Description, l.IsPublic,
                 l.Items.Count,
+                l.Items
+                    .OrderBy(li => li.SortOrder).ThenBy(li => li.AddedAt)
+                    .SelectMany(li => li.Media.Assets
+                        .Where(a => a.AssetType.Name == "Poster")
+                        .Select(a => a.Url)
+                        .Take(1))
+                    .Take(4),
                 l.CreatedAt, l.UpdatedAt))
             .ToListAsync();
         return Ok(lists);
@@ -40,11 +47,48 @@ public class ListsController(AppDbContext db) : ControllerBase
             .Select(l => new ListDto(
                 l.Id, l.UserId, l.Name, l.Description, l.IsPublic,
                 l.Items.Count,
+                l.Items
+                    .OrderBy(li => li.SortOrder).ThenBy(li => li.AddedAt)
+                    .SelectMany(li => li.Media.Assets
+                        .Where(a => a.AssetType.Name == "Poster")
+                        .Select(a => a.Url)
+                        .Take(1))
+                    .Take(4),
                 l.CreatedAt, l.UpdatedAt))
             .FirstOrDefaultAsync();
 
         if (list is null) return NotFound();
         return Ok(list);
+    }
+
+    // GET /api/lists/mine — own lists + lists where user is editor/collaborator
+    [Authorize]
+    [HttpGet("mine")]
+    public async Task<ActionResult<IEnumerable<ListDto>>> GetMine()
+    {
+        var userId = CurrentUserId;
+
+        var collabListIds = await db.ListCollaborators
+            .Where(lc => lc.UserId == userId && lc.CollaboratorRoleId <= 3)
+            .Select(lc => lc.ListId)
+            .ToListAsync();
+
+        var lists = await db.Lists
+            .Where(l => l.UserId == userId || collabListIds.Contains(l.Id))
+            .Select(l => new ListDto(
+                l.Id, l.UserId, l.Name, l.Description, l.IsPublic,
+                l.Items.Count,
+                l.Items
+                    .OrderBy(li => li.SortOrder).ThenBy(li => li.AddedAt)
+                    .SelectMany(li => li.Media.Assets
+                        .Where(a => a.AssetType.Name == "Poster")
+                        .Select(a => a.Url)
+                        .Take(1))
+                    .Take(4),
+                l.CreatedAt, l.UpdatedAt))
+            .ToListAsync();
+
+        return Ok(lists);
     }
 
     [Authorize]
@@ -62,7 +106,7 @@ public class ListsController(AppDbContext db) : ControllerBase
         await db.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetById), new { id = list.Id },
-            new ListDto(list.Id, list.UserId, list.Name, list.Description, list.IsPublic, 0, list.CreatedAt, list.UpdatedAt));
+            new ListDto(list.Id, list.UserId, list.Name, list.Description, list.IsPublic, 0, [], list.CreatedAt, list.UpdatedAt));
     }
 
     [Authorize]
@@ -81,7 +125,16 @@ public class ListsController(AppDbContext db) : ControllerBase
         await db.SaveChangesAsync();
 
         var itemCount = await db.ListItems.CountAsync(li => li.ListId == id);
-        return Ok(new ListDto(list.Id, list.UserId, list.Name, list.Description, list.IsPublic, itemCount, list.CreatedAt, list.UpdatedAt));
+        var covers = await db.ListItems
+            .Where(li => li.ListId == id)
+            .OrderBy(li => li.SortOrder).ThenBy(li => li.AddedAt)
+            .SelectMany(li => li.Media.Assets
+                .Where(a => a.AssetType.Name == "Poster")
+                .Select(a => a.Url)
+                .Take(1))
+            .Take(4)
+            .ToListAsync();
+        return Ok(new ListDto(list.Id, list.UserId, list.Name, list.Description, list.IsPublic, itemCount, covers, list.CreatedAt, list.UpdatedAt));
     }
 
     [Authorize]

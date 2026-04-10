@@ -32,4 +32,7 @@ public record UserProfileDto(
 
 public record ListSummaryDto(int Id, string Name, string? Description, bool IsPublic, int ItemCount);
 
+// Public-safe user info (no email) — used for search results
+public record UserPublicDto(int Id, string Username);
+
 public record WatchedMediaDto(int MediaId, string Title, string? PosterUrl, int Season, DateTime WatchedAt);

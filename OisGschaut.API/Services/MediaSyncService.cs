@@ -14,17 +14,26 @@ public class MediaSyncService(AppDbContext db, TmdbService tmdb, TvMazeService t
     public async Task<List<TmdbSearchResultDto>> SearchTmdbAsync(string query)
     {
         var results = await tmdb.SearchAsync(query);
-        return results.Select(r => new TmdbSearchResultDto(
-            r.Id,
-            r.MediaType == "movie" ? "Movie" : "TV Show",
-            r.Title ?? r.Name ?? string.Empty,
-            r.OriginalTitle ?? r.OriginalName,
-            r.Overview,
-            r.ReleaseDate ?? r.FirstAirDate,
-            r.PosterPath is not null ? $"{ImageBase}{r.PosterPath}" : null,
-            r.VoteAverage
-        )).ToList();
+        return results.Select(MapToDto).ToList();
     }
+
+    // Trending this week from TMDB
+    public async Task<List<TmdbSearchResultDto>> GetTrendingAsync()
+    {
+        var results = await tmdb.TrendingAsync();
+        return results.Select(MapToDto).ToList();
+    }
+
+    private TmdbSearchResultDto MapToDto(TmdbSearchItem r) => new(
+        r.Id,
+        r.MediaType == "movie" ? "Movie" : "TV Show",
+        r.Title ?? r.Name ?? string.Empty,
+        r.OriginalTitle ?? r.OriginalName,
+        r.Overview,
+        r.ReleaseDate ?? r.FirstAirDate,
+        r.PosterPath is not null ? $"{ImageBase}{r.PosterPath}" : null,
+        r.VoteAverage
+    );
 
     // Import a title from TMDB into DB — idempotent (update if already exists)
     public async Task<Media?> ImportFromTmdbAsync(int tmdbId, string type)

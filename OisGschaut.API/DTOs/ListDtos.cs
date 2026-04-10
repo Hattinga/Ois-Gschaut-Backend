@@ -9,6 +9,7 @@ public record ListDto(
     string? Description,
     bool IsPublic,
     int ItemCount,
+    IEnumerable<string> CoverPosters,
     DateTime CreatedAt,
     DateTime UpdatedAt
 );
