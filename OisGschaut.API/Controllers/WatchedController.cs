@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OisGschaut.API.Data;
@@ -10,6 +12,9 @@ namespace OisGschaut.API.Controllers;
 [Route("api/[controller]")]
 public class WatchedController(AppDbContext db) : ControllerBase
 {
+    private int CurrentUserId =>
+        int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
     // GET /api/watched?userId=1            — all watched for a user
     // GET /api/watched?userId=1&mediaId=5  — watched seasons for one media item
     [HttpGet]
@@ -26,13 +31,14 @@ public class WatchedController(AppDbContext db) : ControllerBase
     }
 
     // POST /api/watched  — idempotent: marks season as watched, updates timestamp if already exists
+    [Authorize]
     [HttpPost]
     public async Task<ActionResult<WatchedDto>> Mark([FromBody] MarkWatchedDto dto)
     {
-        if (!await db.Users.AnyAsync(u => u.Id == dto.UserId))  return NotFound("User not found.");
+        var userId = CurrentUserId;
         if (!await db.Media.AnyAsync(m => m.Id == dto.MediaId)) return NotFound("Media not found.");
 
-        var existing = await db.UserSeasonWatched.FindAsync(dto.UserId, dto.MediaId, dto.Season);
+        var existing = await db.UserSeasonWatched.FindAsync(userId, dto.MediaId, dto.Season);
         if (existing is not null)
         {
             existing.WatchedAt = DateTime.UtcNow;
@@ -42,7 +48,7 @@ public class WatchedController(AppDbContext db) : ControllerBase
 
         var entry = new UserSeasonWatched
         {
-            UserId  = dto.UserId,
+            UserId  = userId,
             MediaId = dto.MediaId,
             Season  = dto.Season
         };
@@ -52,11 +58,12 @@ public class WatchedController(AppDbContext db) : ControllerBase
         return Ok(new WatchedDto(entry.UserId, entry.MediaId, entry.Season, entry.WatchedAt));
     }
 
-    // DELETE /api/watched?userId=1&mediaId=5&season=2
+    // DELETE /api/watched?mediaId=5&season=2
+    [Authorize]
     [HttpDelete]
-    public async Task<IActionResult> Unmark([FromQuery] int userId, [FromQuery] int mediaId, [FromQuery] int season)
+    public async Task<IActionResult> Unmark([FromQuery] int mediaId, [FromQuery] int season)
     {
-        var entry = await db.UserSeasonWatched.FindAsync(userId, mediaId, season);
+        var entry = await db.UserSeasonWatched.FindAsync(CurrentUserId, mediaId, season);
         if (entry is null) return NotFound();
         db.UserSeasonWatched.Remove(entry);
         await db.SaveChangesAsync();

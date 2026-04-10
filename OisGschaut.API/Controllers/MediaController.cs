@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OisGschaut.API.Data;
@@ -72,6 +73,7 @@ public class MediaController(AppDbContext db, MediaSyncService sync) : Controlle
     }
 
     // POST /api/media/import  — import a title from TMDB into DB (idempotent)
+    [Authorize]
     [HttpPost("import")]
     public async Task<ActionResult<MediaDto>> Import([FromBody] ImportMediaDto dto)
     {
@@ -93,6 +95,7 @@ public class MediaController(AppDbContext db, MediaSyncService sync) : Controlle
 
     // POST /api/media/{id}/sync-episodes?tvMazeId=82  — sync episodes from TVMaze
     // If tvMazeId is omitted and not stored, auto-searches TVMaze by title.
+    [Authorize]
     [HttpPost("{id:int}/sync-episodes")]
     public async Task<IActionResult> SyncEpisodes(int id, [FromQuery] int? tvMazeId, [FromServices] TvMazeService tvMaze)
     {

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OisGschaut.API.Data;
@@ -101,6 +102,7 @@ public class UsersController(AppDbContext db) : ControllerBase
     }
 
     // PUT /api/users/{id} — update username
+    [Authorize]
     [HttpPut("{id:int}")]
     public async Task<ActionResult<UserDto>> Update(int id, [FromBody] UpdateUserDto dto)
     {
@@ -115,6 +117,7 @@ public class UsersController(AppDbContext db) : ControllerBase
         return Ok(new UserDto(user.Id, user.Email, user.Username, user.OAuthProvider, user.CreatedAt));
     }
 
+    [Authorize]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {

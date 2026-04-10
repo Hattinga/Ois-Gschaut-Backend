@@ -38,6 +38,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasIndex(u => u.Email).IsUnique();
         modelBuilder.Entity<User>()
             .HasIndex(u => u.Username).IsUnique();
+        modelBuilder.Entity<User>()
+            .HasIndex(u => new { u.OAuthProvider, u.OAuthId })
+            .IsUnique()
+            .HasFilter("[OAuthId] IS NOT NULL");
 
         modelBuilder.Entity<UserList>()
             .HasIndex(l => new { l.UserId, l.Name }).IsUnique();

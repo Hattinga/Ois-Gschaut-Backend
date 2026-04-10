@@ -11,6 +11,5 @@ public record CommentDto(
 );
 
 public record CreateCommentDto(
-    int UserId,
     [MaxLength(4000)] string Content
 );

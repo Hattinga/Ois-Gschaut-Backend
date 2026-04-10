@@ -14,7 +14,6 @@ public record ListDto(
 );
 
 public record CreateListDto(
-    int UserId,
     [MaxLength(100)]  string Name,
     [MaxLength(1000)] string? Description,
     bool IsPublic = false

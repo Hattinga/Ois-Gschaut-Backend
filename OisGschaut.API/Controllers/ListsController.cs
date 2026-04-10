@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OisGschaut.API.Data;
@@ -10,6 +12,9 @@ namespace OisGschaut.API.Controllers;
 [Route("api/[controller]")]
 public class ListsController(AppDbContext db) : ControllerBase
 {
+    private int CurrentUserId =>
+        int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
     // ── Lists ─────────────────────────────────────────────────────────────
 
     [HttpGet]
@@ -42,15 +47,13 @@ public class ListsController(AppDbContext db) : ControllerBase
         return Ok(list);
     }
 
+    [Authorize]
     [HttpPost]
     public async Task<ActionResult<ListDto>> Create([FromBody] CreateListDto dto)
     {
-        if (!await db.Users.AnyAsync(u => u.Id == dto.UserId))
-            return NotFound("User not found.");
-
         var list = new UserList
         {
-            UserId      = dto.UserId,
+            UserId      = CurrentUserId,
             Name        = dto.Name,
             Description = dto.Description,
             IsPublic    = dto.IsPublic
@@ -62,11 +65,13 @@ public class ListsController(AppDbContext db) : ControllerBase
             new ListDto(list.Id, list.UserId, list.Name, list.Description, list.IsPublic, 0, list.CreatedAt, list.UpdatedAt));
     }
 
+    [Authorize]
     [HttpPut("{id:int}")]
     public async Task<ActionResult<ListDto>> Update(int id, UpdateListDto dto)
     {
         var list = await db.Lists.FindAsync(id);
         if (list is null) return NotFound();
+        if (list.UserId != CurrentUserId) return Forbid();
 
         if (dto.Name        is not null) list.Name        = dto.Name;
         if (dto.Description is not null) list.Description = dto.Description;
@@ -79,11 +84,14 @@ public class ListsController(AppDbContext db) : ControllerBase
         return Ok(new ListDto(list.Id, list.UserId, list.Name, list.Description, list.IsPublic, itemCount, list.CreatedAt, list.UpdatedAt));
     }
 
+    [Authorize]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
         var list = await db.Lists.FindAsync(id);
         if (list is null) return NotFound();
+        if (list.UserId != CurrentUserId) return Forbid();
+
         db.Lists.Remove(list);
         await db.SaveChangesAsync();
         return NoContent();
@@ -117,10 +125,13 @@ public class ListsController(AppDbContext db) : ControllerBase
         return Ok(items);
     }
 
+    [Authorize]
     [HttpPost("{id:int}/items")]
     public async Task<IActionResult> AddItem(int id, AddListItemDto dto)
     {
         if (!await db.Lists.AnyAsync(l => l.Id == id)) return NotFound("List not found.");
+        if (!await CanEditListAsync(id)) return Forbid();
+
         var media = await db.Media.FindAsync(dto.MediaId);
         if (media is null) return NotFound("Media not found.");
 
@@ -139,9 +150,12 @@ public class ListsController(AppDbContext db) : ControllerBase
         return NoContent();
     }
 
+    [Authorize]
     [HttpDelete("{id:int}/items/{mediaId:int}")]
     public async Task<IActionResult> RemoveItem(int id, int mediaId)
     {
+        if (!await CanEditListAsync(id)) return Forbid();
+
         var item = await db.ListItems.FindAsync(id, mediaId);
         if (item is null) return NotFound();
         db.ListItems.Remove(item);
@@ -166,10 +180,12 @@ public class ListsController(AppDbContext db) : ControllerBase
         return Ok(collaborators);
     }
 
+    [Authorize]
     [HttpPost("{id:int}/collaborators")]
     public async Task<IActionResult> AddCollaborator(int id, AddCollaboratorDto dto)
     {
         if (!await db.Lists.AnyAsync(l => l.Id == id)) return NotFound("List not found.");
+        if (!await IsOwnerOrAdminAsync(id)) return Forbid();
         if (!await db.Users.AnyAsync(u => u.Id == dto.UserId)) return NotFound("User not found.");
         if (!await db.CollaboratorRoles.AnyAsync(r => r.Id == dto.CollaboratorRoleId)) return BadRequest("Invalid role.");
 
@@ -186,13 +202,40 @@ public class ListsController(AppDbContext db) : ControllerBase
         return NoContent();
     }
 
+    [Authorize]
     [HttpDelete("{id:int}/collaborators/{userId:int}")]
     public async Task<IActionResult> RemoveCollaborator(int id, int userId)
     {
+        var list = await db.Lists.FindAsync(id);
+        if (list is null) return NotFound();
+        if (list.UserId != CurrentUserId) return Forbid();
+
         var collab = await db.ListCollaborators.FindAsync(id, userId);
         if (collab is null) return NotFound();
         db.ListCollaborators.Remove(collab);
         await db.SaveChangesAsync();
         return NoContent();
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+
+    // Owner or Editor (role ≤ 3) can add/remove items
+    private async Task<bool> CanEditListAsync(int listId)
+    {
+        var list = await db.Lists.FindAsync(listId);
+        if (list is null) return false;
+        if (list.UserId == CurrentUserId) return true;
+        return await db.ListCollaborators.AnyAsync(lc =>
+            lc.ListId == listId && lc.UserId == CurrentUserId && lc.CollaboratorRoleId <= 3);
+    }
+
+    // Owner or Admin (role ≤ 2) can manage collaborators
+    private async Task<bool> IsOwnerOrAdminAsync(int listId)
+    {
+        var list = await db.Lists.FindAsync(listId);
+        if (list is null) return false;
+        if (list.UserId == CurrentUserId) return true;
+        return await db.ListCollaborators.AnyAsync(lc =>
+            lc.ListId == listId && lc.UserId == CurrentUserId && lc.CollaboratorRoleId <= 2);
     }
 }

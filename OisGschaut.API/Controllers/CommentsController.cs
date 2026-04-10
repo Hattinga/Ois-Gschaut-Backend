@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OisGschaut.API.Data;
@@ -10,6 +12,9 @@ namespace OisGschaut.API.Controllers;
 [Route("api/lists/{listId:int}/comments")]
 public class CommentsController(AppDbContext db) : ControllerBase
 {
+    private int CurrentUserId =>
+        int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
     [HttpGet]
     public async Task<ActionResult<IEnumerable<CommentDto>>> GetByList(int listId)
     {
@@ -25,22 +30,23 @@ public class CommentsController(AppDbContext db) : ControllerBase
         return Ok(comments);
     }
 
+    [Authorize]
     [HttpPost]
     public async Task<ActionResult<CommentDto>> Create(int listId, CreateCommentDto dto)
     {
         if (!await db.Lists.AnyAsync(l => l.Id == listId)) return NotFound("List not found.");
-        if (!await db.Users.AnyAsync(u => u.Id == dto.UserId)) return NotFound("User not found.");
 
+        var userId = CurrentUserId;
         var comment = new Comment
         {
             ListId  = listId,
-            UserId  = dto.UserId,
+            UserId  = userId,
             Content = dto.Content
         };
         db.Comments.Add(comment);
         await db.SaveChangesAsync();
 
-        var user = await db.Users.FindAsync(dto.UserId);
+        var user = await db.Users.FindAsync(userId);
         return CreatedAtAction(nameof(GetByList), new { listId },
             new CommentDto(comment.Id, comment.UserId, user!.Username, comment.Content, comment.CreatedAt));
     }
