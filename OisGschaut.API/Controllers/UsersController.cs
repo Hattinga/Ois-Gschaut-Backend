@@ -49,24 +49,6 @@ public class UsersController(AppDbContext db) : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = user.Id }, result);
     }
 
-    // Find-or-create a guest user by username (pre-auth convenience endpoint)
-    [HttpPost("guest")]
-    public async Task<ActionResult<UserDto>> GuestLogin([FromBody] GuestLoginDto dto)
-    {
-        var user = await db.Users.FirstOrDefaultAsync(u => u.Username == dto.Username);
-        if (user is null)
-        {
-            user = new User
-            {
-                Email    = $"{dto.Username.ToLower().Replace(" ", "_")}@guest.oisgschaut.local",
-                Username = dto.Username
-            };
-            db.Users.Add(user);
-            await db.SaveChangesAsync();
-        }
-        return Ok(new UserDto(user.Id, user.Email, user.Username, user.OAuthProvider, user.CreatedAt));
-    }
-
     // GET /api/users/{id}/profile — stats + lists + recent watched
     [HttpGet("{id:int}/profile")]
     public async Task<ActionResult<UserProfileDto>> GetProfile(int id)

@@ -24,4 +24,5 @@ public class User
     public ICollection<ListCollaborator> Collaborations { get; set; } = [];
     public ICollection<Comment> Comments { get; set; } = [];
     public ICollection<UserSeasonWatched> WatchedSeasons { get; set; } = [];
+    public ICollection<UserEpisodeWatched> WatchedEpisodes { get; set; } = [];
 }

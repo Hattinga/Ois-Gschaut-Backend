@@ -69,4 +69,45 @@ public class WatchedController(AppDbContext db) : ControllerBase
         await db.SaveChangesAsync();
         return NoContent();
     }
+
+    // GET /api/watched/episodes?userId=1&mediaId=5 — returns watched episode IDs for a media item
+    [HttpGet("episodes")]
+    public async Task<ActionResult<IEnumerable<int>>> GetWatchedEpisodes(
+        [FromQuery] int userId, [FromQuery] int mediaId)
+    {
+        var episodeIds = await db.UserEpisodeWatched
+            .Where(w => w.UserId == userId && w.Episode.MediaId == mediaId)
+            .Select(w => w.EpisodeId)
+            .ToListAsync();
+        return Ok(episodeIds);
+    }
+
+    // POST /api/watched/episodes — mark episode as watched (idempotent)
+    [Authorize]
+    [HttpPost("episodes")]
+    public async Task<IActionResult> MarkEpisode([FromBody] MarkEpisodeWatchedDto dto)
+    {
+        var userId = CurrentUserId;
+        if (!await db.Episodes.AnyAsync(e => e.Id == dto.EpisodeId))
+            return NotFound("Episode not found.");
+
+        var existing = await db.UserEpisodeWatched.FindAsync(userId, dto.EpisodeId);
+        if (existing is not null) return Ok();
+
+        db.UserEpisodeWatched.Add(new UserEpisodeWatched { UserId = userId, EpisodeId = dto.EpisodeId });
+        await db.SaveChangesAsync();
+        return Ok();
+    }
+
+    // DELETE /api/watched/episodes?episodeId=42 — unmark episode as watched
+    [Authorize]
+    [HttpDelete("episodes")]
+    public async Task<IActionResult> UnmarkEpisode([FromQuery] int episodeId)
+    {
+        var entry = await db.UserEpisodeWatched.FindAsync(CurrentUserId, episodeId);
+        if (entry is null) return NotFound();
+        db.UserEpisodeWatched.Remove(entry);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
 }

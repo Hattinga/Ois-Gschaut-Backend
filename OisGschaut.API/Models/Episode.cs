@@ -17,4 +17,5 @@ public class Episode
     public string? Summary { get; set; }
 
     public Media Media { get; set; } = null!;
+    public ICollection<UserEpisodeWatched> WatchedByUsers { get; set; } = [];
 }
