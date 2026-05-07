@@ -41,4 +41,17 @@ public class TmdbService(HttpClient http, IConfiguration config)
             .Where(r => r.MediaType is "movie" or "tv")
             .ToList() ?? [];
     }
+
+    // Fetch similar titles from TMDB for a movie or TV show
+    // /similar endpoints don't include media_type — inject it via record reconstruction
+    public async Task<List<TmdbSearchItem>> SimilarAsync(int tmdbId, string type)
+    {
+        var endpoint = type == "movie" ? $"/3/movie/{tmdbId}/similar" : $"/3/tv/{tmdbId}/similar";
+        var resp = await http.GetAsync($"{endpoint}?api_key={ApiKey}");
+        if (!resp.IsSuccessStatusCode) return [];
+        var response = await resp.Content.ReadFromJsonAsync<TmdbSearchResponse>();
+        return (response?.Results ?? [])
+            .Select(r => r with { MediaType = type })
+            .ToList();
+    }
 }

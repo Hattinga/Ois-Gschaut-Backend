@@ -58,7 +58,16 @@ public class UsersController(AppDbContext db) : ControllerBase
 
         var lists = await db.Lists
             .Where(l => l.UserId == id)
-            .Select(l => new ListSummaryDto(l.Id, l.Name, l.Description, l.IsPublic, l.Items.Count))
+            .Select(l => new ListSummaryDto(
+                l.Id, l.Name, l.Description, l.IsPublic,
+                l.Items.Count,
+                l.Items
+                    .OrderBy(li => li.SortOrder).ThenBy(li => li.AddedAt)
+                    .SelectMany(li => li.Media.Assets
+                        .Where(a => a.AssetType.Name == "Poster")
+                        .Select(a => a.Url)
+                        .Take(1))
+                    .Take(4)))
             .ToListAsync();
 
         var filmsWatched = await db.UserSeasonWatched
@@ -66,6 +75,25 @@ public class UsersController(AppDbContext db) : ControllerBase
             .Select(w => w.MediaId)
             .Distinct()
             .CountAsync();
+
+        var episodesWatched = await db.UserEpisodeWatched
+            .Where(w => w.UserId == id)
+            .CountAsync();
+
+        // Fetch raw genre data into memory first, then aggregate client-side
+        // (EF Core can't translate OrderByDescending on a projected record type)
+        var watchedWithGenre = await db.UserSeasonWatched
+            .Where(w => w.UserId == id)
+            .Where(w => w.Media.Genre != null)
+            .Select(w => new { w.MediaId, GenreName = w.Media.Genre!.Name })
+            .ToListAsync();
+
+        var genreBreakdown = watchedWithGenre
+            .GroupBy(w => w.GenreName)
+            .Select(g => new GenreBreakdownDto(g.Key, g.Select(w => w.MediaId).Distinct().Count()))
+            .OrderByDescending(g => g.Count)
+            .Take(8)
+            .ToList();
 
         var recentWatched = await db.UserSeasonWatched
             .Where(w => w.UserId == id)
@@ -84,8 +112,8 @@ public class UsersController(AppDbContext db) : ControllerBase
             .ToListAsync();
 
         return Ok(new UserProfileDto(
-            user.Id, user.Username, user.CreatedAt,
-            lists.Count, filmsWatched, lists, recentWatched));
+            user.Id, user.Username, user.Bio, user.CreatedAt,
+            lists.Count, filmsWatched, episodesWatched, genreBreakdown, lists, recentWatched));
     }
 
     // PUT /api/users/{id} — update username
@@ -100,6 +128,7 @@ public class UsersController(AppDbContext db) : ControllerBase
         if (taken) return Conflict(new { message = "Username is already taken." });
 
         user.Username = dto.Username;
+        if (dto.Bio is not null) user.Bio = dto.Bio;
         await db.SaveChangesAsync();
         return Ok(new UserDto(user.Id, user.Email, user.Username, user.OAuthProvider, user.CreatedAt));
     }

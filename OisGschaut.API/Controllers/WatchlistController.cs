@@ -53,6 +53,43 @@ public class WatchlistController(AppDbContext db) : ControllerBase
         return Ok(ids);
     }
 
+    // GET /api/watchlist/full — returns full MediaDto[] for watchlist items (avoids N+1 on frontend)
+    [HttpGet("full")]
+    public async Task<ActionResult<IEnumerable<MediaDto>>> GetFull()
+    {
+        var userId = CurrentUserId;
+        var list = await db.Lists
+            .FirstOrDefaultAsync(l => l.UserId == userId && l.Name == "Watchlist" && !l.IsPublic);
+
+        if (list is null) return Ok(Array.Empty<MediaDto>());
+
+        var items = await db.ListItems
+            .Where(li => li.ListId == list.Id)
+            .Include(li => li.Media).ThenInclude(m => m.MediaType)
+            .Include(li => li.Media).ThenInclude(m => m.Genre)
+            .Include(li => li.Media).ThenInclude(m => m.Ratings).ThenInclude(r => r.RatingSource)
+            .Include(li => li.Media).ThenInclude(m => m.Assets).ThenInclude(a => a.AssetType)
+            .OrderByDescending(li => li.AddedAt)
+            .Select(li => new MediaDto(
+                li.Media.Id,
+                li.Media.TmdbId,
+                li.Media.TvMazeId,
+                li.Media.Title,
+                li.Media.OriginalTitle,
+                li.Media.MediaType.Name,
+                li.Media.Genre != null ? li.Media.Genre.Name : null,
+                li.Media.Plot,
+                li.Media.ReleaseDate,
+                li.Media.Status,
+                li.Media.RuntimeMin,
+                li.Media.Ratings.Select(r => new RatingDto(r.RatingSource.Name, r.Score)),
+                li.Media.Assets.Select(a => new MediaAssetDto(a.AssetType.Name, a.Url))
+            ))
+            .ToListAsync();
+
+        return Ok(items);
+    }
+
     // POST /api/watchlist/toggle { mediaId } — adds or removes from watchlist
     [HttpPost("toggle")]
     public async Task<ActionResult<WatchlistToggleDto>> Toggle([FromBody] WatchlistToggleRequestDto dto)

@@ -4,4 +4,4 @@ namespace OisGschaut.API.DTOs;
 
 public record AuthResponseDto(UserDto User, string Token);
 
-public record UpdateUserDto([MaxLength(50)] string Username);
+public record UpdateUserDto([MaxLength(50)] string Username, [MaxLength(500)] string? Bio = null);

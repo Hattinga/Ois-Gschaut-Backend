@@ -80,6 +80,21 @@ public class MediaController(AppDbContext db, MediaSyncService sync) : Controlle
         return Ok(results);
     }
 
+    // GET /api/media/{id}/similar — similar titles from TMDB for this media item
+    [HttpGet("{id:int}/similar")]
+    public async Task<ActionResult<IEnumerable<TmdbSearchResultDto>>> GetSimilar(int id)
+    {
+        var media = await db.Media
+            .Include(m => m.MediaType)
+            .FirstOrDefaultAsync(m => m.Id == id);
+
+        if (media is null) return NotFound();
+        if (media.TmdbId is null) return Ok(Array.Empty<TmdbSearchResultDto>());
+
+        var results = await sync.GetSimilarAsync(media.TmdbId.Value, media.MediaType.Name);
+        return Ok(results);
+    }
+
     // POST /api/media/import  — import a title from TMDB into DB (idempotent)
     [Authorize]
     [HttpPost("import")]

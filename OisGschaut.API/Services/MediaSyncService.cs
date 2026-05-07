@@ -24,6 +24,14 @@ public class MediaSyncService(AppDbContext db, TmdbService tmdb, TvMazeService t
         return results.Select(MapToDto).ToList();
     }
 
+    // Similar titles for a given media item (from TMDB)
+    public async Task<List<TmdbSearchResultDto>> GetSimilarAsync(int tmdbId, string mediaType)
+    {
+        var type = mediaType == "Movie" ? "movie" : "tv";
+        var results = await tmdb.SimilarAsync(tmdbId, type);
+        return results.Select(MapToDto).ToList();
+    }
+
     private TmdbSearchResultDto MapToDto(TmdbSearchItem r) => new(
         r.Id,
         r.MediaType == "movie" ? "Movie" : "TV Show",

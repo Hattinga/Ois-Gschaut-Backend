@@ -18,6 +18,9 @@ public class User
     [MaxLength(200)]
     public string? OAuthId { get; set; }
 
+    [MaxLength(500)]
+    public string? Bio { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<UserList> Lists { get; set; } = [];
