@@ -95,58 +95,80 @@ public class MediaSyncService(AppDbContext db, TmdbService tmdb, TvMazeService t
 
     private async Task<Media> UpsertMovieAsync(TmdbMovieDetails details)
     {
-        var media = await db.Media.FirstOrDefaultAsync(m => m.TmdbId == details.Id);
-        var movieTypeId = await db.MediaTypes.Where(t => t.Name == "Movie").Select(t => t.Id).FirstAsync();
-        var genreId = await EnsureGenreAsync(details.Genres?.FirstOrDefault()?.Name);
-
-        if (media is null)
+        // Wrap the entire import (media + assets + rating) in one transaction → ACID
+        await using var tx = await db.Database.BeginTransactionAsync();
+        try
         {
-            media = new Media { TmdbId = details.Id, MediaTypeId = movieTypeId };
-            db.Media.Add(media);
+            var media = await db.Media.FirstOrDefaultAsync(m => m.TmdbId == details.Id);
+            var movieTypeId = await db.MediaTypes.Where(t => t.Name == "Movie").Select(t => t.Id).FirstAsync();
+            var genreId = await EnsureGenreAsync(details.Genres?.FirstOrDefault()?.Name);
+
+            if (media is null)
+            {
+                media = new Media { TmdbId = details.Id, MediaTypeId = movieTypeId };
+                db.Media.Add(media);
+            }
+
+            media.Title = details.Title ?? string.Empty;
+            media.OriginalTitle = details.OriginalTitle;
+            media.Plot = details.Overview;
+            media.ReleaseDate = ParseDate(details.ReleaseDate);
+            media.RuntimeMin = details.Runtime;
+            media.Status = details.Status;
+            media.GenreId = genreId;
+            media.UpdatedAt = DateTime.UtcNow;
+
+            await db.SaveChangesAsync();
+            await SyncAssetsAsync(media.Id, details.PosterPath, details.BackdropPath);
+            await SyncTmdbRatingAsync(media.Id, details.VoteAverage);
+
+            await tx.CommitAsync();
+            return media;
         }
-
-        media.Title = details.Title ?? string.Empty;
-        media.OriginalTitle = details.OriginalTitle;
-        media.Plot = details.Overview;
-        media.ReleaseDate = ParseDate(details.ReleaseDate);
-        media.RuntimeMin = details.Runtime;
-        media.Status = details.Status;
-        media.GenreId = genreId;
-        media.UpdatedAt = DateTime.UtcNow;
-
-        await db.SaveChangesAsync();
-        await SyncAssetsAsync(media.Id, details.PosterPath, details.BackdropPath);
-        await SyncTmdbRatingAsync(media.Id, details.VoteAverage);
-
-        return media;
+        catch
+        {
+            await tx.RollbackAsync();
+            throw;
+        }
     }
 
     private async Task<Media> UpsertTvAsync(TmdbTvDetails details)
     {
-        var media = await db.Media.FirstOrDefaultAsync(m => m.TmdbId == details.Id);
-        var tvTypeId = await db.MediaTypes.Where(t => t.Name == "TV Show").Select(t => t.Id).FirstAsync();
-        var genreId = await EnsureGenreAsync(details.Genres?.FirstOrDefault()?.Name);
-
-        if (media is null)
+        // Wrap the entire import (media + assets + rating) in one transaction → ACID
+        await using var tx = await db.Database.BeginTransactionAsync();
+        try
         {
-            media = new Media { TmdbId = details.Id, MediaTypeId = tvTypeId };
-            db.Media.Add(media);
+            var media = await db.Media.FirstOrDefaultAsync(m => m.TmdbId == details.Id);
+            var tvTypeId = await db.MediaTypes.Where(t => t.Name == "TV Show").Select(t => t.Id).FirstAsync();
+            var genreId = await EnsureGenreAsync(details.Genres?.FirstOrDefault()?.Name);
+
+            if (media is null)
+            {
+                media = new Media { TmdbId = details.Id, MediaTypeId = tvTypeId };
+                db.Media.Add(media);
+            }
+
+            media.Title = details.Name ?? string.Empty;
+            media.OriginalTitle = details.OriginalName;
+            media.Plot = details.Overview;
+            media.ReleaseDate = ParseDate(details.FirstAirDate);
+            media.RuntimeMin = details.EpisodeRunTime?.FirstOrDefault();
+            media.Status = details.Status;
+            media.GenreId = genreId;
+            media.UpdatedAt = DateTime.UtcNow;
+
+            await db.SaveChangesAsync();
+            await SyncAssetsAsync(media.Id, details.PosterPath, details.BackdropPath);
+            await SyncTmdbRatingAsync(media.Id, details.VoteAverage);
+
+            await tx.CommitAsync();
+            return media;
         }
-
-        media.Title = details.Name ?? string.Empty;
-        media.OriginalTitle = details.OriginalName;
-        media.Plot = details.Overview;
-        media.ReleaseDate = ParseDate(details.FirstAirDate);
-        media.RuntimeMin = details.EpisodeRunTime?.FirstOrDefault();
-        media.Status = details.Status;
-        media.GenreId = genreId;
-        media.UpdatedAt = DateTime.UtcNow;
-
-        await db.SaveChangesAsync();
-        await SyncAssetsAsync(media.Id, details.PosterPath, details.BackdropPath);
-        await SyncTmdbRatingAsync(media.Id, details.VoteAverage);
-
-        return media;
+        catch
+        {
+            await tx.RollbackAsync();
+            throw;
+        }
     }
 
     private async Task<int?> EnsureGenreAsync(string? name)

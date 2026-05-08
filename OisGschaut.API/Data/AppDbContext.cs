@@ -71,7 +71,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         // ── Check constraints ─────────────────────────────────────────────
         modelBuilder.Entity<Rating>()
-            .ToTable(t => t.HasCheckConstraint("ck_ratings_score_range", "Score >= 0 AND Score <= 10"));
+            .ToTable(t => t.HasCheckConstraint("ck_ratings_score_range", "CAST(Score AS REAL) >= 0 AND CAST(Score AS REAL) <= 10"));
 
         modelBuilder.Entity<Episode>()
             .ToTable(t => t.HasCheckConstraint("ck_episodes_season_positive", "Season > 0"));
